@@ -1,0 +1,7 @@
+.env
+*.db
+*.csv
+sites/
+__pycache__/
+.ruff_cache/
+config.json

@@ -21,6 +21,7 @@ no API keys, no third-party Python deps.
 | 5. Deploy | Local preview or GitHub Pages; publishing requires explicit `--yes` | `leadengine/deploy.py` |
 | 6. Pitch | Personalized email referencing real business details, sent from **your** SMTP | `leadengine/outreach.py` |
 | 7. Follow-up | 5-touch sequence (days 2/5/9/14), stops on reply | `leadengine/outreach.py` |
+| 8. Replies | IMAP inbox scan auto-marks leads `replied` and halts their follow-ups | `leadengine/replies.py` |
 
 Stage machine (`leadengine/crm.py`): `new → enriched → built → qa_passed →
 deployed → pitched → follow_up → replied → won` (any stage → `dead`). Re-running
@@ -50,7 +51,8 @@ python -m leadengine.enrich <dedupe_key>                          # 2. photos/ho
 # 3-4. build + QA: agent skills `sitegen` and `site-qa` (separate agents, writer != reviewer)
 python -m leadengine.deploy <dedupe_key> --provider local         # 5. local | gh-pages (--yes to publish)
 python -m leadengine.outreach pitch <key> --to a@b.c --subject "..." --body-file p.txt   # 6. touch 1
-python -m leadengine.outreach due                                 # 7. list follow-ups due
+python -m leadengine.replies                                      # 7. auto-detect replies (IMAP)
+python -m leadengine.outreach due                                 # 8. list follow-ups due
 python -m leadengine.outreach touch <key> 2 --subject "..." --body-file f.txt
 ```
 

@@ -13,7 +13,8 @@ Stages: new → enriched → built → qa_passed → deployed → pitched → fo
 4. **QA**: spawn a FRESH agent with the `site-qa` skill (never the builder). FAIL → send fix list to a new sitegen agent; max 2 rebuild rounds, then mark lead for human review and continue with others.
 5. **Deploy**: `python -m leadengine.deploy <dedupe_key> --provider <config.deploy_provider>`. Non-local providers publish externally and need `--yes` — only pass it if the user has approved publishing (config alone is not consent; ask once per session, remember the answer for the batch).
 6. **Pitch**: draft a short personalized email (see below), then `python -m leadengine.outreach pitch <dedupe_key> --to <email> --subject "..." --body-file <tmp>`. No known email → find one during enrichment (site-less businesses often list email on Maps/Instagram); none found → stage stays deployed, flag for human.
-7. **Follow-ups**: `python -m leadengine.outreach due` lists due touches (days 2/5/9/14 after pitch). For each, draft touch N body, send via `outreach touch`. Reply received → user marks `replied`; stop touching.
+7. **Replies**: `python -m leadengine.replies` — scan the IMAP inbox and auto-mark leads `replied` (halts their follow-ups). Run BEFORE follow-ups every session.
+8. **Follow-ups**: `python -m leadengine.outreach due` lists due touches (days 2/5/9/14 after pitch). For each, draft touch N body, send via `outreach touch`. Replied leads never appear here.
 
 ## Pitch drafting rules
 

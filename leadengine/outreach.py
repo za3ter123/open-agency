@@ -22,7 +22,10 @@ from .store import init_db
 _DEFAULT_DB = os.path.join(os.path.dirname(__file__), "..", "leads.db")
 
 
-def load_env(path: str = "projects/agency/.env") -> dict:
+_DEFAULT_ENV = os.path.join(os.path.dirname(__file__), "..", ".env")
+
+
+def load_env(path: str = _DEFAULT_ENV) -> dict:
     """Parse a tiny KEY=VALUE .env file into a dict.
 
     Blank lines and lines starting with '#' are ignored; surrounding

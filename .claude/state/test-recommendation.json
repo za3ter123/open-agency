@@ -1,0 +1,7 @@
+{
+  "timestamp": "2026-07-14T20:42:52Z",
+  "changed_file": "leadengine/outreach.py",
+  "test_command": "pytest -v",
+  "related_test": "",
+  "recommendation": "テストの実行を推奨します"
+}

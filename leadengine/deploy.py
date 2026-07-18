@@ -16,6 +16,8 @@ import shutil
 import subprocess
 import sys
 
+from .seo import audit_site_dir, failed_checks, seo_pass
+
 _PROVIDERS = ("local", "gh-pages", "vercel", "netlify")
 _DEFAULT_DB = os.path.join(os.path.dirname(__file__), "..", "leads.db")
 
@@ -105,9 +107,16 @@ def _gh_enable_pages(repo: str) -> None:
         raise RuntimeError(f"gh api pages enable failed: {r.stderr.strip()} / {r2.stderr.strip()}")
 
 
-def _deploy_gh_pages(site_dir: str, slug: str) -> str:
+def _deploy_gh_pages(site_dir: str, slug: str, force: bool = False) -> str:
     if not detect_providers()["gh"]:
         raise RuntimeError("gh-pages provider requires the `gh` CLI (not installed)")
+    if not force:
+        results = audit_site_dir(site_dir)
+        if not seo_pass(results):
+            raise RuntimeError(
+                "SEO audit failed, refusing to publish "
+                f"(failed: {', '.join(failed_checks(results))}); use --force to override"
+            )
     owner = _gh_login()
     repo = f"{owner}/{slug}-site"
     _gh_ensure_repo(repo)
@@ -116,11 +125,14 @@ def _deploy_gh_pages(site_dir: str, slug: str) -> str:
     return f"https://{owner}.github.io/{slug}-site/"
 
 
-def deploy_site(site_dir: str, slug: str, provider: str = "local", yes: bool = False) -> str:
+def deploy_site(
+    site_dir: str, slug: str, provider: str = "local", yes: bool = False, force: bool = False
+) -> str:
     """Deploy site_dir under the given provider. Returns the published URL.
 
     Any non-local provider is an outward-facing publish action and requires
-    yes=True (mirrors --yes on the CLI).
+    yes=True (mirrors --yes on the CLI). gh-pages additionally requires a
+    passing SEO audit (leadengine.seo) unless force=True.
     """
     if provider not in _PROVIDERS:
         raise ValueError(f"unknown provider {provider!r}; choose from {_PROVIDERS}")
@@ -131,7 +143,7 @@ def deploy_site(site_dir: str, slug: str, provider: str = "local", yes: bool = F
     if provider == "local":
         return _deploy_local(site_dir)
     if provider == "gh-pages":
-        return _deploy_gh_pages(site_dir, slug)
+        return _deploy_gh_pages(site_dir, slug, force=force)
     # vercel / netlify: CLI not installed on this machine
     raise NotImplementedError(f"{provider}: CLI not installed")
 
@@ -141,6 +153,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("dedupe_key", help="pipeline row key to deploy")
     p.add_argument("--provider", choices=_PROVIDERS, default="local")
     p.add_argument("--yes", action="store_true", help="confirm publishing (required for non-local)")
+    p.add_argument("--force", action="store_true", help="skip the SEO audit gate on gh-pages publish")
     p.add_argument("--db", default=_DEFAULT_DB, help="SQLite pipeline path")
     args = p.parse_args(argv)
 
@@ -157,7 +170,7 @@ def main(argv: list[str] | None = None) -> int:
 
     slug = os.path.basename(os.path.normpath(row["site_dir"]))
     try:
-        url = deploy_site(row["site_dir"], slug, provider=args.provider, yes=args.yes)
+        url = deploy_site(row["site_dir"], slug, provider=args.provider, yes=args.yes, force=args.force)
     except (RuntimeError, NotImplementedError, FileNotFoundError, ValueError) as e:
         print(f"[deploy] failed: {e}", file=sys.stderr)
         conn.close()

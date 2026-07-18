@@ -1,13 +1,14 @@
 import os
 import tempfile
 import unittest
+from datetime import datetime, timedelta
 
 from . import _pathshim  # noqa: F401  (adds projects/agency to sys.path)
 from leadengine.store import init_db
 from leadengine.crm import (
     init_pipeline, ensure_row, get_stage, set_stage, save_enrichment,
     set_site, set_qa, set_email, record_touch, due_followups, pipeline_row,
-    board,
+    board, lapsed_leads, set_reply_bucket,
 )
 
 DAY0 = "2026-01-01T00:00:00+00:00"
@@ -15,6 +16,12 @@ DAY0 = "2026-01-01T00:00:00+00:00"
 
 def _iso(day: int) -> str:
     return f"2026-01-{1 + day:02d}T00:00:00+00:00"
+
+
+def _far_iso(days: int) -> str:
+    """Like _iso but not bounded to a single calendar month, for lapsed
+    tests that need offsets past day 30."""
+    return (datetime.fromisoformat(DAY0) + timedelta(days=days)).isoformat()
 
 
 class TestCrm(unittest.TestCase):
@@ -191,6 +198,56 @@ class TestCrm(unittest.TestCase):
         self.assertIn("new", b)
         self.assertEqual(len(b["new"]), 1)
         self.assertEqual(b["new"][0]["dedupe_key"], self.key)
+
+    # -- reply_bucket ---------------------------------------------------
+
+    def test_set_reply_bucket_stores_value(self):
+        set_reply_bucket(self.conn, self.key, "interested")
+        row = pipeline_row(self.conn, self.key)
+        self.assertEqual(row["reply_bucket"], "interested")
+
+    def test_reply_bucket_defaults_none(self):
+        ensure_row(self.conn, self.key)
+        row = pipeline_row(self.conn, self.key)
+        self.assertIsNone(row["reply_bucket"])
+
+    # -- lapsed_leads -----------------------------------------------------
+
+    def _all_five_touches(self):
+        self._to_deployed()
+        record_touch(self.conn, self.key, 1, "s", "b", sent_at=DAY0)
+        record_touch(self.conn, self.key, 2, "s", "b", sent_at=_iso(2))
+        record_touch(self.conn, self.key, 3, "s", "b", sent_at=_iso(5))
+        record_touch(self.conn, self.key, 4, "s", "b", sent_at=_iso(9))
+        record_touch(self.conn, self.key, 5, "s", "b", sent_at=_iso(14))
+
+    def test_not_lapsed_before_all_5_touches(self):
+        self._to_deployed()
+        record_touch(self.conn, self.key, 1, "s", "b", sent_at=DAY0)
+        self.assertEqual(lapsed_leads(self.conn, days=21, now=_far_iso(100)), [])
+
+    def test_not_lapsed_before_days_elapsed(self):
+        self._all_five_touches()
+        # last touch at day 14; 21 days later is day 35
+        self.assertEqual(lapsed_leads(self.conn, days=21, now=_far_iso(30)), [])
+
+    def test_lapsed_after_days_elapsed(self):
+        self._all_five_touches()
+        rows = lapsed_leads(self.conn, days=21, now=_far_iso(35))
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["dedupe_key"], self.key)
+        self.assertEqual(rows[0]["days_since"], 21)
+
+    def test_lapsed_respects_custom_days(self):
+        self._all_five_touches()
+        self.assertEqual(lapsed_leads(self.conn, days=10, now=_far_iso(20)), [])
+        rows = lapsed_leads(self.conn, days=10, now=_far_iso(25))
+        self.assertEqual(len(rows), 1)
+
+    def test_replied_lead_never_lapsed(self):
+        self._all_five_touches()
+        set_stage(self.conn, self.key, "replied")
+        self.assertEqual(lapsed_leads(self.conn, days=21, now=_far_iso(100)), [])
 
 
 if __name__ == "__main__":

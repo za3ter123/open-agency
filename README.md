@@ -54,6 +54,10 @@ python -m leadengine.outreach pitch <key> --to a@b.c --subject "..." --body-file
 python -m leadengine.replies                                      # 7. auto-detect replies (IMAP)
 python -m leadengine.outreach due                                 # 8. list follow-ups due
 python -m leadengine.outreach touch <key> 2 --subject "..." --body-file f.txt
+python -m leadengine.replies --sort                               # 9. classify replies (interested/rejected/auto_reply/other)
+python -m leadengine.outreach lapsed --mark                        # 10. retire dead-end leads (no reply after N days, all 5 touches sent)
+python -m leadengine.seo <dedupe_key>                              # 11. SEO/go-live checklist (deploy --provider gh-pages gates on this)
+python -m leadengine.runqueue next                                 # 12. next niche/region for continuous unattended runs
 ```
 
 ## Preference learning

@@ -64,6 +64,15 @@ def init_pipeline(conn: sqlite3.Connection) -> None:
     """Create the pipeline + touches tables if missing. Idempotent."""
     conn.executescript(_SCHEMA)
     conn.commit()
+    _ensure_column(conn, "pipeline", "reply_bucket", "TEXT")
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, coltype: str) -> None:
+    """Add `column` to `table` if it isn't there yet (simple additive migration)."""
+    cols = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})")}
+    if column not in cols:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {coltype}")
+        conn.commit()
 
 
 def _now() -> str:
@@ -272,6 +281,64 @@ def pipeline_row(conn: sqlite3.Connection, dedupe_key: str) -> dict | None:
     d["enriched_json"] = json.loads(d["enriched_json"]) if d["enriched_json"] else None
     d["qa_report"] = json.loads(d["qa_report"]) if d["qa_report"] else None
     return d
+
+
+def set_reply_bucket(
+    conn: sqlite3.Connection, dedupe_key: str, bucket: str, now: str | None = None
+) -> None:
+    """Store the reply-sort classification for a lead's latest reply."""
+    ensure_row(conn, dedupe_key)
+    conn.execute(
+        "UPDATE pipeline SET reply_bucket = ?, updated_at = ? WHERE dedupe_key = ?",
+        (bucket, now or _now(), dedupe_key),
+    )
+    conn.commit()
+
+
+# A lead is lapsed once it's sent all 5 touches, sat in pitched/follow_up
+# (never replied), and heard nothing back for `days` since the last touch.
+LAPSED_TOUCH_COUNT = 5
+
+
+def lapsed_leads(
+    conn: sqlite3.Connection, days: int = 21, now: str | None = None
+) -> list[dict]:
+    """Leads that have exhausted the 5-touch sequence with no reply.
+
+    Mirrors due_followups' shape/approach: pull pitched/follow_up leads,
+    inspect their touches, and compare the last touch's sent_at against
+    `now` - days.
+    """
+    now_dt = _parse(now) if now else datetime.now(timezone.utc)
+    rows = conn.execute(
+        """
+        SELECT p.dedupe_key, p.email, l.name
+        FROM pipeline p
+        LEFT JOIN leads l ON l.dedupe_key = p.dedupe_key
+        WHERE p.stage IN ('pitched', 'follow_up')
+        """
+    ).fetchall()
+
+    lapsed: list[dict] = []
+    for row in rows:
+        touches = conn.execute(
+            "SELECT touch_no, sent_at FROM touches WHERE dedupe_key = ? "
+            "ORDER BY touch_no",
+            (row["dedupe_key"],),
+        ).fetchall()
+        if len(touches) < LAPSED_TOUCH_COUNT:
+            continue
+        last_sent_at = touches[-1]["sent_at"]
+        cutoff = _parse(last_sent_at) + timedelta(days=days)
+        if cutoff <= now_dt:
+            lapsed.append({
+                "dedupe_key": row["dedupe_key"],
+                "last_sent_at": last_sent_at,
+                "days_since": (now_dt - _parse(last_sent_at)).days,
+                "email": row["email"],
+                "name": row["name"],
+            })
+    return lapsed
 
 
 def board(conn: sqlite3.Connection) -> dict[str, list[dict]]:

@@ -218,6 +218,32 @@ def cmd_due(args: argparse.Namespace) -> int:
         conn.close()
 
 
+def cmd_lapsed(args: argparse.Namespace) -> int:
+    from . import crm
+
+    conn = init_db(args.db)
+    crm.init_pipeline(conn)
+    try:
+        rows = crm.lapsed_leads(conn, days=args.days)
+        if not rows:
+            print("No lapsed leads.")
+            return 0
+        print(f"{'DEDUPE_KEY':<32} {'NAME':<24} {'DAYS_SINCE':>10} {'LAST_SENT':<26} EMAIL")
+        print("-" * 104)
+        for r in rows:
+            print(
+                f"{r['dedupe_key'][:32]:<32} {(r['name'] or '')[:24]:<24} "
+                f"{r['days_since']:>10} {(r['last_sent_at'] or ''):<26} {r['email'] or '-'}"
+            )
+        if args.mark:
+            for r in rows:
+                crm.set_stage(conn, r["dedupe_key"], "dead")
+                print(f"marked dead: {r['dedupe_key']} (reason: lapsed >= {args.days}d)")
+        return 0
+    finally:
+        conn.close()
+
+
 def _add_body_args(p: argparse.ArgumentParser) -> None:
     body = p.add_mutually_exclusive_group(required=True)
     body.add_argument("--body-file", help="path to UTF-8 body text file")
@@ -248,6 +274,14 @@ def main(argv: list[str] | None = None) -> int:
     due = sub.add_parser("due", help="list follow-ups due now")
     due.add_argument("--db", default=_DEFAULT_DB)
     due.set_defaults(func=cmd_due)
+
+    lapsed = sub.add_parser("lapsed", help="list leads that finished all 5 touches with no reply")
+    lapsed.add_argument("--days", type=int, default=21,
+                         help="days of silence since the last touch (default 21)")
+    lapsed.add_argument("--mark", action="store_true",
+                         help="move each listed lead to stage 'dead'")
+    lapsed.add_argument("--db", default=_DEFAULT_DB)
+    lapsed.set_defaults(func=cmd_lapsed)
 
     args = p.parse_args(argv)
     return args.func(args)

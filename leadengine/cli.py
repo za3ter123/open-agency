@@ -22,12 +22,13 @@ def _print_table(rows: list[dict]) -> None:
     if not targets:
         print("No no-website leads found.")
         return
-    print(f"\n{'SCORE':>5}  {'NAME':<34} {'PHONE':<16} {'RATING':>6} {'REVIEWS':>7}")
+    print(f"\n{'SCORE':>5}  {'NAME':<34} {'PHONE':<16} {'RATING':>6} {'REVIEWS':>7}  TOP REASON")
     print("-" * 74)
     for r in targets:
         rating = f"{r['rating']:.1f}" if r["rating"] is not None else "-"
+        top_reason = (r["reasons"] or ["-"])[0]
         print(f"{r['score']:>5}  {(r['name'] or '')[:34]:<34} "
-              f"{(r['phone'] or '-'):<16} {rating:>6} {(r['reviews'] or 0):>7}")
+              f"{(r['phone'] or '-'):<16} {rating:>6} {(r['reviews'] or 0):>7}  {top_reason}")
     print(f"\n{len(targets)} no-website target(s).")
 
 

@@ -31,6 +31,11 @@ Input: `dedupe_key` + site dir `projects/agency/sites/<slug>/`. Run this in a FR
 - No emoji, no lorem ipsum, no invented facts (cross-check copy against `enriched_json`).
 - Palette coherent (not default-blue-on-white template look); contrast readable.
 - Hours/address/contact present if the data had them.
+- **Design system consistency**: one design system (per `sitegen/SKILL.md` table) applied throughout — fonts, radius, shadow language, and spacing don't drift section to section; matches the category's auto-pick or a documented prefs.md/lead override.
+- **Rating badge**: if `enriched_json` has `rating`+`reviews`, hero shows a stars badge with the correct numbers (cross-check exact values) linking to `maps_url`; if either is missing, badge is correctly absent (not fabricated).
+- **SEO head block**: `<title>` follows "<Name> — <Category> in <City>", real meta description, viewport tag, exactly one `<h1>`, `og:title`/`og:description`/`og:image` present, JSON-LD `LocalBusiness` present with real phone/address (and `aggregateRating` if rating data exists), every `<img>` has descriptive real-content `alt` text, no external requests (view source — no external `<link>`/`<script src>`/CDN).
+- **Sticky mobile CTA**: in the 390px screenshot, a fixed "Call now" bar is visible at the bottom, doesn't overlap footer content, and its `tel:` link matches the hero's.
+- **CONTENT.md exists**: `sites/<slug>/CONTENT.md` is present and its edit markers correspond to real `<!-- EDIT: ... -->` comments in `index.html`.
 
 ## Verdict
 

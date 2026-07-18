@@ -32,6 +32,36 @@ After ANY user feedback on a generated site or email (style, colors, tone, secti
 
 From `projects/agency`: `python -c "import json; from leadengine import store, crm; c = store.init_db('leads.db'); crm.init_pipeline(c); b = crm.board(c); print(json.dumps({k: len(v) for k, v in b.items()}))"` — print the board at start and end of every run.
 
+## Continuous mode
+
+For unattended 24/7 operation, after finishing a batch don't stop — pull the next
+niche/region combo and start another batch:
+
+1. `python -m leadengine.runqueue next` — prints `"<niche> in <region>"` and
+   advances the round-robin cursor persisted in `config.json` (`niches: []`,
+   `regions: []`, `queue_cursor`). Empty `niches`/`regions` — stop and tell the
+   user to populate them.
+2. Feed that combo into step 1 (Source) as `"<niche> in <region>"` and repeat
+   the full pipeline for the new batch.
+3. Before starting each new batch, run `python -m leadengine.replies` (mark
+   replies) and `python -m leadengine.outreach lapsed --mark` (retire dead leads)
+   so state stays current across a long unattended run.
+
+**Stopping conditions** — check before every batch, stop immediately if any hit:
+
+- **Daily cap**: default 10 sites built per calendar day (count `deployed`+
+  stage transitions reached today via the pipeline `updated_at` timestamps).
+  Configurable; stop once hit and resume the next day.
+- **Stop file**: if `STOP` exists in the project root (`C:\Users\Win\projects\agency\STOP`),
+  stop immediately without finishing the current batch's remaining leads.
+- **Repeated errors**: if the same pipeline stage errors twice in a row
+  (across any leads), stop and surface the errors for human review rather
+  than retrying a third time.
+
+Publish (`--yes`) and email-send approval flags from the one-shot workflow above
+still apply every batch — continuous mode never grants itself standing
+permission to publish or email; it must have been granted for the session.
+
 ## Hard rules
 
 - Never send email without real SMTP config the user entered; DRY_RUN=1 in .env for rehearsal.
